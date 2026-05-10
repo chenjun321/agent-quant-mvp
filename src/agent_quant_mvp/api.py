@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from .backtest import run_backtest
+from .database import DEFAULT_DATABASE_URL, DatabaseRunStore
 from .data import load_market_bars
+from .storage import JsonlRunStore
 
 app = FastAPI(title="Crypto AI Trading Agent Paper MVP", version="0.2.0")
 
@@ -21,6 +24,9 @@ class PaperRunRequest(BaseModel):
     max_drawdown_pct: float | None = Field(default=12.0, gt=0, le=100)
     max_loss_pct: float | None = Field(default=8.0, gt=0, le=100)
     flatten_on_halt: bool = True
+    persist_jsonl: bool = False
+    persist_db: bool = False
+    database_url: str = DEFAULT_DATABASE_URL
 
 
 def _compact_result(result) -> dict:
@@ -65,7 +71,27 @@ def paper_run(request: PaperRunRequest) -> dict:
         max_loss_pct=request.max_loss_pct,
         flatten_on_halt=request.flatten_on_halt,
     )
-    return _compact_result(result)
+    payload = _compact_result(result)
+
+    if request.persist_jsonl or request.persist_db:
+        run_id = f"{request.symbol.upper()}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+        persistence: dict[str, str] = {"run_id": run_id}
+
+        if request.persist_jsonl:
+            store = JsonlRunStore()
+            store.write_json(run_id, "summary", payload)
+            store.write_jsonl(run_id, "traces", result.traces)
+            store.write_jsonl(run_id, "fills", result.fills)
+            persistence["jsonl_root"] = str(store.root)
+
+        if request.persist_db:
+            store = DatabaseRunStore(database_url=request.database_url)
+            store.write_run(run_id, result)
+            persistence["database_url"] = request.database_url
+
+        payload["persistence"] = persistence
+
+    return payload
 
 
 @app.get("/demo/backtest")

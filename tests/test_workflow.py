@@ -1,11 +1,15 @@
 import importlib
+import sqlite3
 import sys
+import tempfile
 import types
 import unittest
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 from agent_quant_mvp.backtest import run_backtest
+from agent_quant_mvp.database import SQLALCHEMY_AVAILABLE, DatabaseRunStore
 from agent_quant_mvp.data import generate_mock_bars
 from agent_quant_mvp.models import MarketBar
 from agent_quant_mvp.paper import PaperBroker
@@ -138,6 +142,26 @@ class AgentWorkflowTest(unittest.TestCase):
         self.assertEqual(broker.positions.get("BTC", 0.0), 0.0)
         self.assertEqual(result.fills[-1].action, "sell")
         self.assertEqual(result.fills[-1].reason, result.halt_reason)
+
+    def test_database_run_store_persists_backtest_result(self) -> None:
+        if not SQLALCHEMY_AVAILABLE:
+            self.skipTest("sqlalchemy is not installed in this environment")
+
+        result = run_backtest(source="mock", limit=180, lookback=60)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "agent_quant_mvp.db"
+            store = DatabaseRunStore(database_url=f"sqlite:///{db_path}")
+            store.write_run("test-run-1", result)
+
+            with sqlite3.connect(db_path) as conn:
+                run_count = conn.execute("select count(*) from runs").fetchone()[0]
+                fill_count = conn.execute("select count(*) from fills").fetchone()[0]
+                trace_count = conn.execute("select count(*) from traces").fetchone()[0]
+
+        self.assertEqual(run_count, 1)
+        self.assertEqual(fill_count, len(result.fills))
+        self.assertEqual(trace_count, len(result.traces))
 
 
 if __name__ == "__main__":

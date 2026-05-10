@@ -50,8 +50,8 @@ Market Data
   支持最大回撤、最大亏损阈值，触发后可强制平仓
 - `Structured trace`
   每根 bar 的 research、plan、risk、portfolio 输出都能回放
-- `Run artifacts`
-  支持 JSON / JSONL 保存 summary、fills、traces
+- `Run persistence`
+  支持 JSON / JSONL 调试落盘，以及 `SQLite / PostgreSQL` 数据库存储
 - `FastAPI service`
   可通过 HTTP 触发行情拉取与模拟盘运行
 
@@ -87,7 +87,9 @@ Binance REST / Mock Bars
 - `runner.py`
   回测/模拟盘 session 引擎与会话级熔断
 - `storage.py`
-  JSON / JSONL 运行结果落盘
+  JSON / JSONL 调试落盘
+- `database.py`
+  PostgreSQL-ready 数据库持久化层，默认本地使用 SQLite
 - `api.py`
   对外 API 服务
 
@@ -105,6 +107,7 @@ agent-quant-mvp/
 │       ├── agents.py
 │       ├── api.py
 │       ├── backtest.py
+│       ├── database.py
 │       ├── data.py
 │       ├── factors.py
 │       ├── models.py
@@ -152,6 +155,16 @@ PYTHONPATH=src python3 scripts/run_binance_paper.py \
   --persist
 ```
 
+写入数据库：
+
+```bash
+PYTHONPATH=src python3 scripts/run_binance_paper.py \
+  --symbol BTCUSDT \
+  --source binance \
+  --persist-db \
+  --database-url postgresql+psycopg://user:password@localhost:5432/agent_quant
+```
+
 启动 API：
 
 ```bash
@@ -185,7 +198,10 @@ uvicorn agent_quant_mvp.api:app --reload
   "source": "mock",
   "max_drawdown_pct": 12,
   "max_loss_pct": 8,
-  "flatten_on_halt": true
+  "flatten_on_halt": true,
+  "persist_jsonl": false,
+  "persist_db": true,
+  "database_url": "postgresql+psycopg://user:password@localhost:5432/agent_quant"
 }
 ```
 
@@ -245,6 +261,8 @@ uvicorn agent_quant_mvp.api:app --reload
   既有订单级风控，也有 session 级熔断
 - `Execution is isolated`
   决策链和 broker 执行层分离，便于以后接真实交易所 API
+- `Database-ready persistence`
+  运行结果可以落到生产数据库，而不只是停留在本地 JSON 文件
 - `Trace first`
   每一步都有结构化输出，方便 badcase 分析和离线评测
 
@@ -274,7 +292,7 @@ uvicorn agent_quant_mvp.api:app --reload
 1. `Exchange execution abstraction`
    抽象 live / paper adapter，接 Binance 私有 API、签名、幂等单号、订单同步
 2. `Persistent state`
-   从 JSONL 升级到 SQLite / PostgreSQL，增加 order ledger / run journal
+   在当前 SQLite / PostgreSQL run store 基础上继续细化 order ledger / position snapshots / audit trail
 3. `Realtime market infra`
    接 WebSocket Kline / ticker / user stream，处理断线重连和补偿
 4. `Model routing`
