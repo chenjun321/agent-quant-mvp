@@ -1,36 +1,97 @@
-# Crypto AI Trading Agent Paper MVP
+# Crypto AI Trading Agent MVP
 
-一个面向 `Binance 现货模拟盘` 的 AI Agent 交易系统 MVP。
+一个面向 `Binance Spot` 模拟盘的 `AI Agent + Quant + Execution` 项目原型。
 
-这个项目的目标不是让大模型直接下单，而是搭建一条可生产演进的闭环：
+这个仓库不是在演示“让大模型直接拍脑袋下单”，而是在实现一条更接近生产系统的交易闭环：
 
 ```text
-Binance / Mock K线
-  -> 指标计算
+Market Data
+  -> Factor Engine
   -> Market Analyst Agent
   -> Strategy Planner Agent
   -> Risk Manager Agent
   -> Portfolio Agent
   -> Paper Broker
-  -> Trace / Fill / Equity 复盘
+  -> Fill / Equity / Trace / Run Artifacts
 ```
 
-当前版本只做模拟盘，不接真实交易 API，不需要 Binance API key。
+当前版本聚焦 `现货模拟盘`，不接真实资金，不需要 Binance API Key，但已经把后续走向实盘所需的系统边界拆出来了。
 
-## 核心能力
+## Why This Project
 
-- `Binance Spot` 公共 K 线接入：通过 REST 拉取历史 K 线。
-- `Mock Data` fallback：无网络或演示场景也可以稳定运行。
-- `Data Source 标记`：如果 Binance 请求失败并回退到 mock，结果中的 `data_source` 会明确显示实际数据源。
-- `指标计算`：momentum、volatility、MA gap、RSI、EMA、MACD、ATR、volume z-score。
-- `Agent 决策链`：市场分析、策略计划、规则风控、组合决策。
-- `Spot Paper Broker`：模拟买入、卖出、手续费、滑点、现金、持仓、权益曲线。
-- `Session 风控熔断`：支持最大回撤、最大亏损阈值，以及触发后强制平仓。
-- `结构化 trace`：每一步 Agent 输入输出都可以复盘。
-- `FastAPI`：提供行情和模拟盘运行接口。
-- `JSON/JSONL 持久化`：可保存 summary、trace、fills，方便后续接评测和监控。
+这个项目适合用来展示以下能力：
 
-## 目录结构
+- `AI Agent engineering`：把研究、计划、风控、组合决策拆成可组合的多 Agent 工作流
+- `Trading system thinking`：不是只算指标，而是覆盖数据、信号、执行、风控、复盘
+- `Production awareness`：显式处理 fallback、风控熔断、结构化 trace、可持久化结果
+- `Backend engineering`：提供可脚本化运行入口和 FastAPI 服务接口
+
+如果你在找的是下面这类岗位，这个项目方向是对的：
+
+- AI Agent 工程师
+- AI 交易系统工程师
+- Quant / Trading Infra / Strategy Platform 工程师
+
+## Core Features
+
+- `Binance Spot public market data`
+  通过 REST 拉取历史 K 线
+- `Mock fallback`
+  Binance 请求失败时自动回退到 mock 数据，方便 demo 和离线演示
+- `Explicit data-source reporting`
+  返回 `requested_source`、`actual_source`、`fallback_used`
+- `Factor engine`
+  包含 momentum、volatility、MA gap、RSI、EMA、MACD、ATR、volume z-score、trend score
+- `Agent workflow`
+  市场分析、策略规划、规则风控、组合决策分层执行
+- `Paper broker`
+  支持现货买卖、手续费、滑点、现金/仓位/权益跟踪
+- `Session risk halt`
+  支持最大回撤、最大亏损阈值，触发后可强制平仓
+- `Structured trace`
+  每根 bar 的 research、plan、risk、portfolio 输出都能回放
+- `Run artifacts`
+  支持 JSON / JSONL 保存 summary、fills、traces
+- `FastAPI service`
+  可通过 HTTP 触发行情拉取与模拟盘运行
+
+## Architecture
+
+```text
+Binance REST / Mock Bars
+  -> data.py
+  -> factors.py
+  -> workflow.py
+      -> MarketAnalystAgent
+      -> StrategyPlannerAgent
+      -> RiskManagerAgent
+      -> PortfolioAgent
+  -> paper.py
+  -> runner.py
+  -> storage.py
+  -> api.py / scripts/
+```
+
+模块职责：
+
+- `data.py`
+  行情读取与 mock fallback
+- `factors.py`
+  指标与特征计算
+- `agents.py`
+  多 Agent 决策逻辑
+- `workflow.py`
+  串联一次完整决策链
+- `paper.py`
+  模拟成交、持仓、费用、滑点
+- `runner.py`
+  回测/模拟盘 session 引擎与会话级熔断
+- `storage.py`
+  JSON / JSONL 运行结果落盘
+- `api.py`
+  对外 API 服务
+
+## Repository Layout
 
 ```text
 agent-quant-mvp/
@@ -41,23 +102,24 @@ agent-quant-mvp/
 │   └── run_demo.py
 ├── src/
 │   └── agent_quant_mvp/
-│       ├── agents.py       # Market / Strategy / Risk / Portfolio agents
-│       ├── api.py          # FastAPI service
-│       ├── backtest.py     # paper session entrypoint
-│       ├── data.py         # Binance public data + mock bars
-│       ├── factors.py      # quant indicators
-│       ├── models.py       # structured domain models
-│       ├── paper.py        # spot paper broker
-│       ├── runner.py       # session engine
-│       ├── storage.py      # JSON/JSONL run artifacts
-│       └── workflow.py     # agent orchestration
+│       ├── agents.py
+│       ├── api.py
+│       ├── backtest.py
+│       ├── data.py
+│       ├── factors.py
+│       ├── models.py
+│       ├── paper.py
+│       ├── runner.py
+│       ├── storage.py
+│       └── workflow.py
 └── tests/
     └── test_workflow.py
 ```
 
-## 快速开始
+## Quick Start
 
 ```bash
+git clone git@github.com:chenjun321/agent-quant-mvp.git
 cd agent-quant-mvp
 python3 -m venv .venv
 source .venv/bin/activate
@@ -65,22 +127,29 @@ pip install -e .
 python scripts/run_demo.py
 ```
 
-如果你只是想先跑核心模拟盘，不想安装依赖，也可以直接使用源码路径：
+如果你只想快速运行源码，不先安装依赖，也可以：
 
 ```bash
 PYTHONPATH=src python3 scripts/run_demo.py
 ```
 
-拉 Binance 公共 K 线并跑现货模拟盘：
+拉取 Binance 公共 K 线并运行模拟盘：
 
 ```bash
-PYTHONPATH=src python3 scripts/run_binance_paper.py --symbol BTCUSDT --interval 1h --limit 240 --source binance
+PYTHONPATH=src python3 scripts/run_binance_paper.py \
+  --symbol BTCUSDT \
+  --interval 1h \
+  --limit 240 \
+  --source binance
 ```
 
-保存运行结果到 `runs/`：
+保存结果到 `runs/`：
 
 ```bash
-PYTHONPATH=src python3 scripts/run_binance_paper.py --symbol BTCUSDT --source binance --persist
+PYTHONPATH=src python3 scripts/run_binance_paper.py \
+  --symbol BTCUSDT \
+  --source binance \
+  --persist
 ```
 
 启动 API：
@@ -89,6 +158,8 @@ PYTHONPATH=src python3 scripts/run_binance_paper.py --symbol BTCUSDT --source bi
 uvicorn agent_quant_mvp.api:app --reload
 ```
 
+## API
+
 常用接口：
 
 - `GET /health`
@@ -96,11 +167,11 @@ uvicorn agent_quant_mvp.api:app --reload
 - `POST /paper/run`
 - `GET /demo/backtest?symbol=BTCUSDT&source=mock`
 
-`GET /market/klines` 会同时返回：
+`GET /market/klines` 会返回：
 
-- `requested_source`：请求的数据源
-- `actual_source`：实际使用的数据源
-- `fallback_used`：是否发生了回退
+- `requested_source`
+- `actual_source`
+- `fallback_used`
 
 `POST /paper/run` 示例：
 
@@ -118,50 +189,119 @@ uvicorn agent_quant_mvp.api:app --reload
 }
 ```
 
-## Agent 设计
+## Agent Design
 
 `MarketAnalystAgent`
 
-基于指标判断市场状态，输出 regime、方向倾向、confidence、thesis、observations 和 risk_factors。
+基于因子与市场快照输出：
+
+- regime
+- side bias
+- confidence
+- thesis
+- observations
+- risk factors
 
 `StrategyPlannerAgent`
 
-把市场观点转换成结构化交易计划，包括 action、仓位比例、入场价、止损、止盈、持仓周期和证据。
+把市场观点转成结构化交易计划：
+
+- buy / sell / hold
+- 仓位比例
+- entry price
+- stop loss
+- take profit
+- holding bars
+- evidence
 
 `RiskManagerAgent`
 
-用确定性规则做最终拦截，包括最大仓位、单笔上限、最低置信度、波动率上限、RSI 过热、库存检查。
+用确定性规则做最终拦截：
+
+- 最大仓位
+- 单笔上限
+- 最低置信度
+- 波动率阈值
+- RSI 过热过滤
+- 库存检查
 
 `PortfolioAgent`
 
-把通过风控的计划转换为目标组合动作。当前 spot 版本只支持 `buy / sell / hold`，不做合约空头。
+把 research + plan + risk 合成为目标组合动作。当前 spot 版本只支持：
 
-## 生产边界
+- `buy`
+- `sell`
+- `hold`
+
+## Production-Oriented Decisions
+
+这个仓库虽然是 MVP，但有几处设计是明确按生产思路做的：
+
+- `LLM-shaped interface, rule-based implementation`
+  先用结构化 Agent 接口把系统边界固定住，再用确定性逻辑保证可测试与可回放
+- `Data fallback is explicit`
+  回退到 mock 数据时不会伪装成真实 Binance 数据
+- `Risk is layered`
+  既有订单级风控，也有 session 级熔断
+- `Execution is isolated`
+  决策链和 broker 执行层分离，便于以后接真实交易所 API
+- `Trace first`
+  每一步都有结构化输出，方便 badcase 分析和离线评测
+
+## Current Scope
 
 当前版本适合：
 
-- 简历项目展示
-- Agent 交易系统原型
+- GitHub / 简历项目展示
+- AI 交易 Agent 原型验证
 - Binance 现货模拟盘
-- 策略链路回放
+- 决策链路回放
 - 风控规则验证
 
 当前版本不做：
 
 - 真实下单
-- API key 管理
-- 提现或资金权限
+- 私有 API key 管理
+- 提现或资金权限控制
 - 高频交易
-- 合约杠杆
+- 合约杠杆与空头
+- WebSocket 实时执行
 
-后续进入真实生产前，建议增加：
+## Roadmap To Production
 
-- 交易所私有 API 签名与权限隔离
-- 实盘全局开关与人工确认
-- 最大日亏损熔断
-- 订单状态同步与补偿任务
-- SQLite / PostgreSQL / ClickHouse 落库
-- WebSocket 实时行情
-- LLM provider、模型路由、Prompt 版本管理
-- badcase 回放与离线评测集
-- Grafana / Prometheus 监控
+如果要继续把它打磨成更强的 AI 交易系统项目，我建议下一步按这个顺序升级：
+
+1. `Exchange execution abstraction`
+   抽象 live / paper adapter，接 Binance 私有 API、签名、幂等单号、订单同步
+2. `Persistent state`
+   从 JSONL 升级到 SQLite / PostgreSQL，增加 order ledger / run journal
+3. `Realtime market infra`
+   接 WebSocket Kline / ticker / user stream，处理断线重连和补偿
+4. `Model routing`
+   支持 OpenAI / Claude / 开源模型 provider 抽象与 prompt versioning
+5. `Evaluation loop`
+   建 badcase 数据集、离线评测、参数回放与策略对比
+6. `Observability`
+   接 Prometheus / Grafana / alerting
+
+## Validation
+
+当前已覆盖的基础验证：
+
+```bash
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+```
+
+测试重点包括：
+
+- mock bars 生成
+- workflow 结构化输出
+- rejected order 不执行
+- data fallback 标记正确
+- session 风控触发后自动平仓
+
+## Resume-Friendly Summary
+
+如果你要把这个项目写进简历，可以概括成：
+
+> 设计并实现一个面向 Crypto Spot 模拟盘的 AI Agent 交易系统原型，打通市场数据、因子计算、多 Agent 决策、规则风控、组合动作、模拟执行与结构化复盘链路，并为后续实盘接入预留执行层、模型路由与监控边界。
