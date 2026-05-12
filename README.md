@@ -143,7 +143,7 @@ agent-quant-platform/
 ## Quick Start
 
 ```bash
-git clone git@github.com:chenjun321/agent-quant-mvp.git agent-quant-platform
+git clone <your-repo-url> agent-quant-platform
 cd agent-quant-platform
 python3 -m venv .venv
 source .venv/bin/activate
