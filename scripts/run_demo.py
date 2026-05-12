@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 
-from agent_quant_mvp.backtest import run_backtest
+from agent_quant_platform.backtest import run_backtest
 
 
 def main() -> None:

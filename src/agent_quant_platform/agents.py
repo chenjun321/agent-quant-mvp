@@ -179,6 +179,6 @@ class PortfolioAgent:
         )
 
 
-# Backwards-compatible aliases for the original MVP naming.
+# Backwards-compatible aliases for the original naming.
 ResearchAgent = MarketAnalystAgent
 RiskAgent = RiskManagerAgent

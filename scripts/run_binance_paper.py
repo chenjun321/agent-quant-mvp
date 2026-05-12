@@ -5,9 +5,9 @@ import json
 from dataclasses import asdict
 from datetime import datetime
 
-from agent_quant_mvp.backtest import run_backtest
-from agent_quant_mvp.database import DEFAULT_DATABASE_URL, DatabaseRunStore
-from agent_quant_mvp.storage import JsonlRunStore
+from agent_quant_platform.backtest import run_backtest
+from agent_quant_platform.database import DEFAULT_DATABASE_URL, DatabaseRunStore
+from agent_quant_platform.storage import JsonlRunStore
 
 
 def main() -> None:

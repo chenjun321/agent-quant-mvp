@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-quant-mvp"
+name = "agent-quant-platform"
 version = "0.1.0"
-description = "A minimal Agent + Quant research and backtest project."
+description = "A production-oriented AI trading platform with structured agent workflows."
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [

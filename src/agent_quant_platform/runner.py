@@ -104,7 +104,7 @@ class PaperTradingEngine:
         total_fees = sum(fill.fee for fill in self.broker.fills)
         wins = 0
         closed_sells = [fill for fill in self.broker.fills if fill.action == "sell"]
-        # In this MVP, win rate is intentionally conservative and only counts
+        # In this platform, win rate is intentionally conservative and only counts
         # completed sell events as closed trades.
         for fill in closed_sells:
             previous_buy = next((item for item in reversed(self.broker.fills) if item.ts <= fill.ts and item.action == "buy"), None)

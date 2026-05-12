@@ -12,7 +12,7 @@ from .data import load_market_bars
 from .evals import WorkflowEvaluator, default_eval_cases
 from .storage import JsonlRunStore
 
-app = FastAPI(title="Crypto AI Trading Agent Paper MVP", version="0.2.0")
+app = FastAPI(title="Agent Quant Platform API", version="0.2.0")
 
 
 class PaperRunRequest(BaseModel):

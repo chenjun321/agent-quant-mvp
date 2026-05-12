@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 
-from agent_quant_mvp.evals import WorkflowEvaluator, default_eval_cases
+from agent_quant_platform.evals import WorkflowEvaluator, default_eval_cases
 
 
 def main() -> None:

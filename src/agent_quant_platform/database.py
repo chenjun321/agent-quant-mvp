@@ -7,7 +7,7 @@ from typing import Any
 
 from .models import BacktestResult
 
-DEFAULT_DATABASE_URL = "sqlite:///runs/agent_quant_mvp.db"
+DEFAULT_DATABASE_URL = "sqlite:///runs/agent_quant_platform.db"
 
 try:
     from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, create_engine, select

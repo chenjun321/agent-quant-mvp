@@ -8,18 +8,18 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
-from agent_quant_mvp.agents import MarketAnalystAgent, StrategyPlannerAgent
-from agent_quant_mvp.backtest import run_backtest
-from agent_quant_mvp.backends import ProviderBackedResearchBackend, ProviderBackedStrategyBackend, StaticStructuredModelProvider
-from agent_quant_mvp.database import SQLALCHEMY_AVAILABLE, DatabaseRunStore
-from agent_quant_mvp.data import generate_mock_bars
-from agent_quant_mvp.evals import WorkflowEvaluator, default_eval_cases
-from agent_quant_mvp.knowledge import InMemoryKnowledgeBase, KnowledgeNote
-from agent_quant_mvp.models import MarketBar
-from agent_quant_mvp.paper import PaperBroker
-from agent_quant_mvp.runner import PaperTradingEngine
-from agent_quant_mvp.tools import DEFAULT_AGENT_TOOLS
-from agent_quant_mvp.workflow import AgentWorkflow
+from agent_quant_platform.agents import MarketAnalystAgent, StrategyPlannerAgent
+from agent_quant_platform.backtest import run_backtest
+from agent_quant_platform.backends import ProviderBackedResearchBackend, ProviderBackedStrategyBackend, StaticStructuredModelProvider
+from agent_quant_platform.database import SQLALCHEMY_AVAILABLE, DatabaseRunStore
+from agent_quant_platform.data import generate_mock_bars
+from agent_quant_platform.evals import WorkflowEvaluator, default_eval_cases
+from agent_quant_platform.knowledge import InMemoryKnowledgeBase, KnowledgeNote
+from agent_quant_platform.models import MarketBar
+from agent_quant_platform.paper import PaperBroker
+from agent_quant_platform.runner import PaperTradingEngine
+from agent_quant_platform.tools import DEFAULT_AGENT_TOOLS
+from agent_quant_platform.workflow import AgentWorkflow
 
 
 class AgentWorkflowTest(unittest.TestCase):
@@ -86,10 +86,10 @@ class AgentWorkflowTest(unittest.TestCase):
         dummy_pydantic.Field = lambda default=None, **kwargs: default
 
         with patch.dict(sys.modules, {"fastapi": dummy_fastapi, "pydantic": dummy_pydantic}):
-            sys.modules.pop("agent_quant_mvp.api", None)
-            api_module = importlib.import_module("agent_quant_mvp.api")
+            sys.modules.pop("agent_quant_platform.api", None)
+            api_module = importlib.import_module("agent_quant_platform.api")
 
-        with patch("agent_quant_mvp.api.load_market_bars", return_value=fallback_bars):
+        with patch("agent_quant_platform.api.load_market_bars", return_value=fallback_bars):
             payload = api_module.market_klines(symbol="BTCUSDT", source="binance")
 
         self.assertEqual(payload["requested_source"], "binance")
@@ -118,8 +118,8 @@ class AgentWorkflowTest(unittest.TestCase):
         dummy_pydantic.Field = lambda default=None, **kwargs: default
 
         with patch.dict(sys.modules, {"fastapi": dummy_fastapi, "pydantic": dummy_pydantic}):
-            sys.modules.pop("agent_quant_mvp.api", None)
-            api_module = importlib.import_module("agent_quant_mvp.api")
+            sys.modules.pop("agent_quant_platform.api", None)
+            api_module = importlib.import_module("agent_quant_platform.api")
 
         payload = api_module.default_evals()
 
@@ -185,7 +185,7 @@ class AgentWorkflowTest(unittest.TestCase):
         result = run_backtest(source="mock", limit=180, lookback=60)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "agent_quant_mvp.db"
+            db_path = Path(tmpdir) / "agent_quant_platform.db"
             store = DatabaseRunStore(database_url=f"sqlite:///{db_path}")
             store.write_run("test-run-1", result)
 

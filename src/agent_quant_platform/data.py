@@ -26,7 +26,7 @@ class BinanceSpotDataClient:
     def fetch_klines(self, symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 240) -> list[MarketBar]:
         query = urlencode({"symbol": symbol.upper(), "interval": interval, "limit": limit})
         url = f"{self.base_url}/api/v3/klines?{query}"
-        request = Request(url, headers={"User-Agent": "agent-quant-mvp/0.1"})
+        request = Request(url, headers={"User-Agent": "agent-quant-platform/0.1"})
 
         with urlopen(request, timeout=self.timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))

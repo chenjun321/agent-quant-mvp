@@ -1,4 +1,4 @@
-# Crypto AI Trading Agent MVP
+# Agent Quant Platform
 
 一个面向 `Binance Spot` 模拟盘的 `AI Agent + Quant + Execution` 项目原型。
 
@@ -112,7 +112,7 @@ Binance REST / Mock Bars
 ## Repository Layout
 
 ```text
-agent-quant-mvp/
+agent-quant-platform/
 ├── README.md
 ├── pyproject.toml
 ├── scripts/
@@ -120,7 +120,7 @@ agent-quant-mvp/
 │   ├── run_demo.py
 │   └── run_evals.py
 ├── src/
-│   └── agent_quant_mvp/
+│   └── agent_quant_platform/
 │       ├── agents.py
 │       ├── api.py
 │       ├── backends.py
@@ -143,8 +143,8 @@ agent-quant-mvp/
 ## Quick Start
 
 ```bash
-git clone git@github.com:chenjun321/agent-quant-mvp.git
-cd agent-quant-mvp
+git clone git@github.com:chenjun321/agent-quant-mvp.git agent-quant-platform
+cd agent-quant-platform
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
@@ -189,7 +189,7 @@ PYTHONPATH=src python3 scripts/run_binance_paper.py \
 启动 API：
 
 ```bash
-uvicorn agent_quant_mvp.api:app --reload
+uvicorn agent_quant_platform.api:app --reload
 ```
 
 运行默认 evals：
@@ -286,7 +286,7 @@ PYTHONPATH=src python3 scripts/run_evals.py
 
 ## Production-Oriented Decisions
 
-这个仓库虽然是 MVP，但有几处设计是明确按生产思路做的：
+这个仓库虽然当前以 paper-trading prototype 为主，但有几处设计是明确按生产思路做的：
 
 - `LLM-shaped interface, rule-based implementation`
   先用结构化 Agent 接口把系统边界固定住，再用确定性逻辑保证可测试与可回放
