@@ -44,6 +44,10 @@ Market Data
   包含 momentum、volatility、MA gap、RSI、EMA、MACD、ATR、volume z-score、trend score
 - `Agent workflow`
   市场分析、策略规划、规则风控、组合决策分层执行
+- `Pluggable agent backends`
+  research / strategy 已抽象成 backend，可切换 rule-based 或 provider-backed 实现
+- `Knowledge and tools`
+  Agent 可接入 knowledge notes 与 specialized tools，补充决策上下文
 - `Paper broker`
   支持现货买卖、手续费、滑点、现金/仓位/权益跟踪
 - `Session risk halt`
@@ -54,6 +58,8 @@ Market Data
   支持 JSON / JSONL 调试落盘，以及 `SQLite / PostgreSQL` 数据库存储
 - `FastAPI service`
   可通过 HTTP 触发行情拉取与模拟盘运行
+- `Built-in evals`
+  提供默认 eval cases 和 eval runner，用于回归 agent 行为
 
 ## Architecture
 
@@ -61,6 +67,8 @@ Market Data
 Binance REST / Mock Bars
   -> data.py
   -> factors.py
+  -> knowledge.py / tools.py
+  -> backends.py
   -> workflow.py
       -> MarketAnalystAgent
       -> StrategyPlannerAgent
@@ -79,7 +87,13 @@ Binance REST / Mock Bars
 - `factors.py`
   指标与特征计算
 - `agents.py`
-  多 Agent 决策逻辑
+  多 Agent 决策逻辑与 backend 装配
+- `backends.py`
+  research / strategy backend 抽象，支持 provider-backed 模式
+- `knowledge.py`
+  knowledge note 与检索接口
+- `tools.py`
+  agent tools 注册与上下文补充
 - `workflow.py`
   串联一次完整决策链
 - `paper.py`
@@ -92,6 +106,8 @@ Binance REST / Mock Bars
   PostgreSQL-ready 数据库持久化层，默认本地使用 SQLite
 - `api.py`
   对外 API 服务
+- `evals.py`
+  eval cases、打分逻辑、eval runner
 
 ## Repository Layout
 
@@ -101,19 +117,24 @@ agent-quant-mvp/
 ├── pyproject.toml
 ├── scripts/
 │   ├── run_binance_paper.py
-│   └── run_demo.py
+│   ├── run_demo.py
+│   └── run_evals.py
 ├── src/
 │   └── agent_quant_mvp/
 │       ├── agents.py
 │       ├── api.py
+│       ├── backends.py
 │       ├── backtest.py
 │       ├── database.py
 │       ├── data.py
+│       ├── evals.py
 │       ├── factors.py
+│       ├── knowledge.py
 │       ├── models.py
 │       ├── paper.py
 │       ├── runner.py
 │       ├── storage.py
+│       ├── tools.py
 │       └── workflow.py
 └── tests/
     └── test_workflow.py
@@ -171,6 +192,12 @@ PYTHONPATH=src python3 scripts/run_binance_paper.py \
 uvicorn agent_quant_mvp.api:app --reload
 ```
 
+运行默认 evals：
+
+```bash
+PYTHONPATH=src python3 scripts/run_evals.py
+```
+
 ## API
 
 常用接口：
@@ -179,6 +206,7 @@ uvicorn agent_quant_mvp.api:app --reload
 - `GET /market/klines?symbol=BTCUSDT&source=mock`
 - `POST /paper/run`
 - `GET /demo/backtest?symbol=BTCUSDT&source=mock`
+- `GET /evals/default`
 
 `GET /market/klines` 会返回：
 
@@ -218,6 +246,13 @@ uvicorn agent_quant_mvp.api:app --reload
 - observations
 - risk factors
 
+当前支持：
+
+- rule-based backend
+- provider-backed backend
+- knowledge notes 注入
+- specialized tools 注入
+
 `StrategyPlannerAgent`
 
 把市场观点转成结构化交易计划：
@@ -255,6 +290,10 @@ uvicorn agent_quant_mvp.api:app --reload
 
 - `LLM-shaped interface, rule-based implementation`
   先用结构化 Agent 接口把系统边界固定住，再用确定性逻辑保证可测试与可回放
+- `Backend abstraction`
+  research / strategy 已拆成 backend，可平滑切换到真实 LLM provider
+- `Tools and knowledge are first-class`
+  agent 不只看指标，还能消费工具输出和知识上下文
 - `Data fallback is explicit`
   回退到 mock 数据时不会伪装成真实 Binance 数据
 - `Risk is layered`
@@ -265,6 +304,8 @@ uvicorn agent_quant_mvp.api:app --reload
   运行结果可以落到生产数据库，而不只是停留在本地 JSON 文件
 - `Trace first`
   每一步都有结构化输出，方便 badcase 分析和离线评测
+- `Evals are runnable`
+  默认 case 可直接跑，适合 prompt / backend / risk 逻辑迭代
 
 ## Current Scope
 
@@ -314,9 +355,12 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 
 - mock bars 生成
 - workflow 结构化输出
+- provider-backed backend 覆盖默认决策
+- knowledge / tool context 注入
 - rejected order 不执行
 - data fallback 标记正确
 - session 风控触发后自动平仓
+- default eval cases 全量通过
 
 ## Resume-Friendly Summary
 

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from .backtest import run_backtest
 from .database import DEFAULT_DATABASE_URL, DatabaseRunStore
 from .data import load_market_bars
+from .evals import WorkflowEvaluator, default_eval_cases
 from .storage import JsonlRunStore
 
 app = FastAPI(title="Crypto AI Trading Agent Paper MVP", version="0.2.0")
@@ -98,3 +99,14 @@ def paper_run(request: PaperRunRequest) -> dict:
 def demo_backtest(symbol: str = "BTCUSDT", source: str = "mock") -> dict:
     result = run_backtest(symbol=symbol, source=source)
     return _compact_result(result)
+
+
+@app.get("/evals/default")
+def default_evals() -> dict:
+    evaluator = WorkflowEvaluator()
+    results = evaluator.evaluate_cases(default_eval_cases())
+    return {
+        "passed_cases": sum(1 for result in results if result.passed),
+        "total_cases": len(results),
+        "results": [asdict(result) for result in results],
+    }

@@ -8,12 +8,17 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
+from agent_quant_mvp.agents import MarketAnalystAgent, StrategyPlannerAgent
 from agent_quant_mvp.backtest import run_backtest
+from agent_quant_mvp.backends import ProviderBackedResearchBackend, ProviderBackedStrategyBackend, StaticStructuredModelProvider
 from agent_quant_mvp.database import SQLALCHEMY_AVAILABLE, DatabaseRunStore
 from agent_quant_mvp.data import generate_mock_bars
+from agent_quant_mvp.evals import WorkflowEvaluator, default_eval_cases
+from agent_quant_mvp.knowledge import InMemoryKnowledgeBase, KnowledgeNote
 from agent_quant_mvp.models import MarketBar
 from agent_quant_mvp.paper import PaperBroker
 from agent_quant_mvp.runner import PaperTradingEngine
+from agent_quant_mvp.tools import DEFAULT_AGENT_TOOLS
 from agent_quant_mvp.workflow import AgentWorkflow
 
 
@@ -91,6 +96,36 @@ class AgentWorkflowTest(unittest.TestCase):
         self.assertEqual(payload["actual_source"], "mock")
         self.assertTrue(payload["fallback_used"])
 
+    def test_eval_endpoint_returns_default_eval_summary(self) -> None:
+        dummy_fastapi = types.ModuleType("fastapi")
+        dummy_pydantic = types.ModuleType("pydantic")
+
+        class DummyFastAPI:
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+            def get(self, *args, **kwargs):
+                return lambda func: func
+
+            def post(self, *args, **kwargs):
+                return lambda func: func
+
+        class DummyBaseModel:
+            pass
+
+        dummy_fastapi.FastAPI = DummyFastAPI
+        dummy_pydantic.BaseModel = DummyBaseModel
+        dummy_pydantic.Field = lambda default=None, **kwargs: default
+
+        with patch.dict(sys.modules, {"fastapi": dummy_fastapi, "pydantic": dummy_pydantic}):
+            sys.modules.pop("agent_quant_mvp.api", None)
+            api_module = importlib.import_module("agent_quant_mvp.api")
+
+        payload = api_module.default_evals()
+
+        self.assertEqual(payload["total_cases"], 3)
+        self.assertEqual(payload["passed_cases"], 3)
+
     def test_engine_halts_and_flattens_position_when_loss_limit_breaches(self) -> None:
         start = datetime(2025, 1, 1, 0, 0, 0)
         bars = []
@@ -162,6 +197,75 @@ class AgentWorkflowTest(unittest.TestCase):
         self.assertEqual(run_count, 1)
         self.assertEqual(fill_count, len(result.fills))
         self.assertEqual(trace_count, len(result.traces))
+
+    def test_market_agent_uses_knowledge_and_tool_context(self) -> None:
+        bars = generate_mock_bars(symbol="BTCUSDT", periods=80)
+        broker = PaperBroker()
+        snapshot_account = broker.account_snapshot(bars[-1])
+        knowledge_base = InMemoryKnowledgeBase(
+            notes=[
+                KnowledgeNote(
+                    note_id="btc-1",
+                    title="BTC momentum regimes deserve explicit confirmation.",
+                    content="Use knowledge context to influence market analysis explanations.",
+                    symbols=["BTCUSDT"],
+                    tags=["trend"],
+                )
+            ]
+        )
+        market_agent = MarketAnalystAgent(knowledge_base=knowledge_base, tools=DEFAULT_AGENT_TOOLS)
+        workflow = AgentWorkflow(market_agent=market_agent)
+
+        trace = workflow.step(symbol="BTCUSDT", window=bars[-60:], account=snapshot_account)
+        joined_observations = " ".join(trace.research.observations)
+
+        self.assertIn("Knowledge note:", joined_observations)
+        self.assertIn("Tool", joined_observations)
+
+    def test_provider_backed_agents_can_override_rule_outputs(self) -> None:
+        bars = generate_mock_bars(symbol="BTCUSDT", periods=80)
+        broker = PaperBroker()
+        account = broker.account_snapshot(bars[-1])
+        provider = StaticStructuredModelProvider(
+            responses={
+                "market_analysis": {
+                    "regime": "trend_up",
+                    "side_bias": "long",
+                    "confidence": 0.91,
+                    "thesis": "Provider-backed research expects continuation.",
+                    "observations": ["Provider saw a favorable setup."],
+                    "risk_factors": [],
+                },
+                "strategy_plan": {
+                    "action": "buy",
+                    "quote_amount_pct": 0.25,
+                    "confidence": 0.91,
+                    "rationale": "Provider-backed strategy wants to add spot exposure.",
+                    "entry_price": bars[-1].close,
+                    "stop_loss": bars[-1].close * 0.96,
+                    "take_profit": bars[-1].close * 1.05,
+                    "max_holding_bars": 18,
+                    "evidence": ["Provider-backed evidence."],
+                },
+            }
+        )
+        workflow = AgentWorkflow(
+            market_agent=MarketAnalystAgent(backend=ProviderBackedResearchBackend(provider)),
+            strategy_agent=StrategyPlannerAgent(backend=ProviderBackedStrategyBackend(provider)),
+        )
+
+        trace = workflow.step(symbol="BTCUSDT", window=bars[-60:], account=account)
+
+        self.assertEqual(trace.research.thesis, "Provider-backed research expects continuation.")
+        self.assertEqual(trace.plan.action, "buy")
+        self.assertAlmostEqual(trace.plan.quote_amount_pct, 0.25)
+
+    def test_default_eval_cases_pass(self) -> None:
+        evaluator = WorkflowEvaluator()
+        results = evaluator.evaluate_cases(default_eval_cases())
+
+        self.assertEqual(len(results), 3)
+        self.assertTrue(all(result.passed for result in results))
 
 
 if __name__ == "__main__":

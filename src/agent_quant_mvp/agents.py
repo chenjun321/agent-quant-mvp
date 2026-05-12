@@ -1,128 +1,67 @@
 from __future__ import annotations
 
+from .backends import (
+    AgentContext,
+    RuleBasedResearchBackend,
+    RuleBasedStrategyBackend,
+)
+from .knowledge import InMemoryKnowledgeBase, default_market_knowledge_base
 from .models import (
-    AccountSnapshot,
-    FactorSnapshot,
     MarketSnapshot,
     PortfolioDecision,
     ResearchView,
     RiskDecision,
     StrategyPlan,
 )
+from .tools import AgentTool, DEFAULT_AGENT_TOOLS
 
 
 class MarketAnalystAgent:
-    """Interprets market state from deterministic indicators.
+    """Interprets market state with pluggable backends, tools, and knowledge."""
 
-    The class is rule-based now so the system is testable and safe. It is shaped
-    like an LLM agent: structured input, structured output, thesis, evidence,
-    and risk factors.
-    """
+    def __init__(
+        self,
+        backend: RuleBasedResearchBackend | None = None,
+        tools: tuple[AgentTool, ...] = DEFAULT_AGENT_TOOLS,
+        knowledge_base: InMemoryKnowledgeBase | None = None,
+    ) -> None:
+        self.backend = backend or RuleBasedResearchBackend()
+        self.tools = tools
+        self.knowledge_base = knowledge_base or default_market_knowledge_base()
 
     def analyze(self, snapshot: MarketSnapshot) -> ResearchView:
-        factors = snapshot.factors
-        observations: list[str] = []
-        risk_factors: list[str] = []
+        context = self._build_context(snapshot=snapshot)
+        return self.backend.generate(snapshot, context)
 
-        if factors.momentum_20 > 0:
-            observations.append("20-bar momentum is positive.")
-        else:
-            observations.append("20-bar momentum is negative or flat.")
-
-        if factors.rsi_14 >= 70:
-            risk_factors.append("RSI is overheated.")
-        elif factors.rsi_14 <= 30:
-            observations.append("RSI is near oversold territory.")
-
-        if factors.volume_zscore > 1.5:
-            observations.append("Latest volume is materially above its recent baseline.")
-
-        if factors.volatility_10 > 0.035:
-            return ResearchView(
-                regime="high_volatility",
-                side_bias="flat",
-                confidence=0.38,
-                thesis="Realized volatility is elevated, so the system should avoid opening new spot exposure.",
-                observations=observations,
-                risk_factors=risk_factors + ["Volatility filter is active."],
-            )
-
-        if factors.trend_score >= 0.65 and factors.rsi_14 < 95:
-            return ResearchView(
-                regime="trend_up",
-                side_bias="long",
-                confidence=0.76,
-                thesis="Trend, moving-average position, and MACD are aligned to the upside.",
-                observations=observations,
-                risk_factors=risk_factors,
-            )
-
-        if factors.trend_score <= -0.65:
-            return ResearchView(
-                regime="trend_down",
-                side_bias="flat",
-                confidence=0.73,
-                thesis="Downside trend evidence is strong; spot mode should avoid long exposure.",
-                observations=observations,
-                risk_factors=risk_factors + ["Spot mode cannot express a short without derivatives."],
-            )
-
-        return ResearchView(
-            regime="range",
-            side_bias="flat",
-            confidence=0.48,
-            thesis="Signals are mixed, suggesting a ranging market without a strong directional edge.",
-            observations=observations,
-            risk_factors=risk_factors,
-        )
+    def _build_context(self, snapshot: MarketSnapshot) -> AgentContext:
+        tool_observations: list[str] = []
+        for tool in self.tools:
+            tool_observations.extend(tool.run(snapshot))
+        knowledge_notes = self.knowledge_base.search(symbol=snapshot.symbol, query="", limit=2)
+        return AgentContext(tool_observations=tool_observations, knowledge_notes=knowledge_notes)
 
 
 class StrategyPlannerAgent:
+    def __init__(
+        self,
+        backend: RuleBasedStrategyBackend | None = None,
+        tools: tuple[AgentTool, ...] = DEFAULT_AGENT_TOOLS,
+        knowledge_base: InMemoryKnowledgeBase | None = None,
+    ) -> None:
+        self.backend = backend or RuleBasedStrategyBackend()
+        self.tools = tools
+        self.knowledge_base = knowledge_base or default_market_knowledge_base()
+
     def plan(self, snapshot: MarketSnapshot, research: ResearchView) -> StrategyPlan:
-        price = snapshot.latest_bar.close
-        atr = snapshot.factors.atr_14
+        context = self._build_context(snapshot=snapshot)
+        return self.backend.generate(snapshot, research, context)
 
-        if research.side_bias == "long" and research.confidence >= 0.7:
-            quote_pct = 0.2 if research.confidence < 0.8 else 0.3
-            return StrategyPlan(
-                action="buy",
-                quote_amount_pct=quote_pct,
-                confidence=research.confidence,
-                rationale="Open spot exposure because trend evidence is aligned and volatility is acceptable.",
-                entry_price=price,
-                stop_loss=round(max(price - atr * 2, price * 0.96), 4),
-                take_profit=round(price + atr * 3, 4),
-                evidence=research.observations,
-            )
-
-        if research.regime == "trend_down" and snapshot.account and snapshot.account.exposure_pct > 0:
-            return StrategyPlan(
-                action="sell",
-                quote_amount_pct=1.0,
-                confidence=research.confidence,
-                rationale="Reduce spot exposure because downside trend evidence is strong.",
-                entry_price=price,
-                evidence=research.observations + research.risk_factors,
-            )
-
-        if research.regime == "trend_down":
-            return StrategyPlan(
-                action="hold",
-                quote_amount_pct=0.0,
-                confidence=research.confidence,
-                rationale="Hold because spot inventory is empty and spot mode does not open short positions.",
-                entry_price=price,
-                evidence=research.observations + research.risk_factors,
-            )
-
-        return StrategyPlan(
-            action="hold",
-            quote_amount_pct=0.0,
-            confidence=research.confidence,
-            rationale="Hold because the agent does not have enough directional edge.",
-            entry_price=price,
-            evidence=research.observations + research.risk_factors,
-        )
+    def _build_context(self, snapshot: MarketSnapshot) -> AgentContext:
+        tool_observations: list[str] = []
+        for tool in self.tools:
+            tool_observations.extend(tool.run(snapshot))
+        knowledge_notes = self.knowledge_base.search(symbol=snapshot.symbol, query="", limit=2)
+        return AgentContext(tool_observations=tool_observations, knowledge_notes=knowledge_notes)
 
 
 class RiskManagerAgent:
